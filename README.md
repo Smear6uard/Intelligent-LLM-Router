@@ -1,65 +1,137 @@
-Intelligent LLM Router
-A scalable, configurable routing engine for Large Language Models (LLMs)—built to automatically direct user prompts to the best-performing, most cost-effective model provider. This project demonstrates cloud API orchestration, real-time analytics, and customizable rules for dynamic model selection.
+# Intelligent LLM Router
 
-Features
-Smart Prompt Routing: Classifies incoming prompts (Q&A, summarization, code, etc.) and selects the optimal LLM based on cost, latency, and accuracy.
+A sophisticated routing engine for Large Language Models (LLMs) designed to automatically direct user prompts to the optimal model provider based on cost, latency, and accuracy requirements. Built with modern web technologies and enterprise-grade architecture patterns.
 
-Dashboard UI: View live prompt flows, model usage statistics, and metrics for cost savings and performance—all in one place.
+## Overview
 
-Custom Routing Rules: Dynamically prioritize models for speed, price, or quality according to user settings.
+This project provides an intelligent abstraction layer over multiple LLM providers, enabling dynamic model selection based on configurable routing rules. The system analyzes incoming prompts and routes them to the most appropriate LLM provider, optimizing for performance and cost-efficiency.
 
-Provider Integrations: Supports fast plug-in of LLM providers (Groq, OpenAI, Cohere, Gemini, and more).
+## Current Status
 
-Analytics & Logging: Tracks prompt volume, response health, and model hit rates. Enables A/B testing and reporting on efficiency and accuracy.
+**In Active Development** - Core infrastructure and foundational architecture complete. Currently implementing routing logic and provider integrations.
 
-Extensible Design: Add new models or update routing logic with minimal code changes.
+### Completed Features
 
-Tech Stack
-Next.js (Frontend UI)
+- Modern Next.js 15 application architecture with App Router
+- TypeScript-first development with strict type safety
+- Server Actions for secure backend operations
+- Custom structured logging system with context-aware formatting
+- Production-ready UI component library (Radix UI + Tailwind CSS)
+- Form handling with React Hook Form + Zod validation
+- Environment configuration management
+- Development tooling (ESLint, Prettier, TypeScript)
 
-TypeScript (core logic, backend API)
+### Planned Features
 
-Node.js/Express (API integrations)
+- **Smart Prompt Routing**: Multi-model classification system to route prompts based on complexity, type, and requirements
+- **Provider Integrations**: Support for OpenAI, Anthropic, Groq, Cohere, and Gemini APIs
+- **Analytics Dashboard**: Real-time metrics for cost tracking, latency monitoring, and usage statistics
+- **Custom Routing Rules**: User-configurable policies for model selection based on speed, cost, or quality
+- **A/B Testing Framework**: Compare model performance across different providers
+- **Caching Layer**: Intelligent response caching to reduce API costs
 
-Chart.js (analytics dashboard)
+## Tech Stack
 
-REST/GraphQL (for model APIs)
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Styling**: Tailwind CSS, Radix UI components
+- **State Management**: React Server Components, Server Actions
+- **Form Handling**: React Hook Form, Zod validation
+- **Development**: ESLint, Prettier, Turbopack
+- **Deployment**: Vercel-ready (optimized for serverless)
 
-Cloud deployment (Vercel, AWS)
+## Project Structure
 
-Installation
-Clone the repo:
-git clone https://github.com/yourusername/llm-router.git
+```
+src/
+├── app/
+│   ├── actions/        # Server Actions for data mutations
+│   ├── api/           # API routes
+│   └── components/    # React components
+├── components/
+│   └── ui/            # Reusable UI components
+├── config/            # Environment and configuration
+├── hooks/             # Custom React hooks
+├── lib/               # Shared utilities
+└── utils/             # Helper functions (logging, etc.)
+```
 
-Install dependencies:
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/intelligent-llm-router.git
+cd intelligent-llm-router
+
+# Install dependencies
 npm install
 
-Add API keys for supported LLM providers in .env
+# Set up environment variables
+cp .env.example .env.local
+# Add your API keys for LLM providers
 
-Start the development server:
+# Start development server
+npm run dev
+```
+
+## Development
+
+```bash
+# Run development server with Turbopack
 npm run dev
 
-Usage
-Submit prompts through the dashboard; view instant routing and live results.
+# Build for production
+npm run build
 
-Configure model selection rules in the settings panel.
+# Start production server
+npm start
 
-Analyze cost, latency, and quality metrics post-run.
+# Lint code
+npm run lint
 
-Easily add more providers or routing logic via the config files.
+# Format code
+npm run format
+```
 
-Project Impact
-Cost Savings: Achieved up to 40% reduction in API spend by routing simple requests to low-cost models.
+## Architecture Highlights
 
-Performance: Routed 1,000+ prompts/hour with sub-second average response.
+### Server-Side Logging
+Custom `Logger` class with environment-aware output, structured logging, and color-coded terminal display for development debugging.
 
-Scalability: Plug-and-play architecture supports 3+ providers and scales to more.
+### Type-Safe Server Actions
+All data mutations handled through Next.js Server Actions with full TypeScript support, ensuring type safety from client to server.
 
-Reliability: Less than 1% prompt drop rate in simulated mass-load tests.
+### Component Architecture
+Modular, reusable components built on Radix UI primitives with consistent styling through Tailwind CSS and class-variance-authority.
 
+## Roadmap
 
-Contributing
-Pull requests welcome—see the CONTRIBUTING.md file. For major changes, open an issue first.
+- [ ] Implement prompt classification system
+- [ ] Integrate OpenAI API
+- [ ] Integrate Anthropic Claude API
+- [ ] Build routing decision engine
+- [ ] Create analytics dashboard
+- [ ] Add response caching layer
+- [ ] Implement cost tracking
+- [ ] Build A/B testing framework
+- [ ] Add rate limiting and queue management
+- [ ] Deploy to production
 
-License
+## Use Cases
+
+- **Cost Optimization**: Route simple queries to cheaper models, complex tasks to premium models
+- **Latency Optimization**: Send time-sensitive requests to fastest providers
+- **Quality Assurance**: Route critical prompts to highest-quality models
+- **Load Balancing**: Distribute requests across multiple providers
+- **Fallback Handling**: Automatic failover to backup providers
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
 MIT
+
+---
+
+**Note**: This project is under active development. Features and API may change as development progresses.
