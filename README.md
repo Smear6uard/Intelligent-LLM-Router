@@ -4,9 +4,7 @@ A production-grade system that classifies prompts by complexity, routes them to 
 
 ## Demo
 
-https://github.com/Smear6uard/Intelligent-LLM-Router/raw/main/demo.mov
-
-> *Showing prompt classification, streaming completion, and A/B Arena with live model comparison*
+<video src="https://github.com/Smear6uard/Intelligent-LLM-Router/raw/main/demo.mp4" controls></video>
 
 ## Architecture
 
