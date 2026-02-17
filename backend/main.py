@@ -16,7 +16,7 @@ from classifier import classify
 from router import select_model, calculate_cost, calculate_hypothetical_cost, FALLBACK_ORDER
 from gateway import stream_completion, generate_completion
 from database import init_db, close_db, insert_request, fetch_one
-from ab_testing import run_ab_test, get_ab_models, record_vote
+from ab_testing import run_ab_test, stream_ab_test, get_ab_models, record_vote
 from analytics import (
     get_summary, get_timeseries, get_model_distribution,
     get_cost_comparison, get_recent, get_ab_history,
@@ -28,8 +28,9 @@ import gateway_live
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Simple in-memory rate limiter
+# Simple in-memory rate limiter — only applies to expensive endpoints
 _rate_limit: dict[str, list[float]] = {}
+RATE_LIMITED_PATHS = {"/api/completion", "/api/classify", "/api/ab-test"}
 
 
 def _get_rate_limit_params() -> tuple[int, int]:
@@ -82,13 +83,14 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    if request.url.path.startswith("/api/"):
-        client_ip = request.client.host if request.client else "unknown"
-        if not check_rate_limit(client_ip):
-            return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
-    return await call_next(request)
+# Rate limiting disabled for local development
+# @app.middleware("http")
+# async def rate_limit_middleware(request: Request, call_next):
+#     if request.url.path in RATE_LIMITED_PATHS:
+#         client_ip = request.client.host if request.client else "unknown"
+#         if not check_rate_limit(client_ip):
+#             return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+#     return await call_next(request)
 
 
 # --- Mode ---
@@ -205,7 +207,7 @@ async def _stream_response(request_id, prompt, task_type, complexity, confidence
 
             yield f"event: done\ndata: {json.dumps({'latency_ms': final_data['latency_ms'], 'tokens_used': final_data['tokens_used'], 'cost_cents': cost})}\n\n"
 
-    except RuntimeError:
+    except Exception:
         # Try fallback model
         fallback = FALLBACK_ORDER.get(model)
         if fallback:
@@ -245,7 +247,7 @@ async def _non_stream_response(request_id, prompt, task_type, complexity, confid
             result = await gateway_live.generate_completion_live(prompt, model, api_key)
         else:
             result = await generate_completion(task_type, model)
-    except RuntimeError:
+    except Exception:
         fallback = FALLBACK_ORDER.get(model)
         if not fallback:
             raise HTTPException(status_code=503, detail="Model unavailable")
@@ -299,9 +301,16 @@ async def ab_test(req: ABTestRequest):
     complexity = classification["complexity"]
 
     models = get_ab_models(task_type, req.models)
-    result = await run_ab_test(req.prompt, task_type, complexity, models)
 
-    return result
+    return StreamingResponse(
+        stream_ab_test(req.prompt, task_type, complexity, models),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/ab-test/{test_id}/vote")

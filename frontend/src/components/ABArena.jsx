@@ -1,39 +1,75 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Swords, Trophy, Clock, Coins, Hash, Send } from 'lucide-react'
-import { runABTest, voteABTest, getABTestHistory } from '../utils/api'
+import { streamABTest, voteABTest, getABTestHistory } from '../utils/api'
 import { EXAMPLE_PROMPTS, TASK_TYPE_LABELS, TASK_TYPE_COLORS, MODEL_COLORS } from '../utils/constants'
 import ModelBadge from './ModelBadge'
 
 export default function ABArena() {
   const [prompt, setPrompt] = useState('')
-  const [testResult, setTestResult] = useState(null)
+  const [testMeta, setTestMeta] = useState(null)     // {test_id, task_type, complexity, models}
+  const [modelTexts, setModelTexts] = useState({})    // {model: "streaming text..."}
+  const [modelStats, setModelStats] = useState({})    // {model: {latency_ms, tokens_used, cost_cents}}
   const [isRunning, setIsRunning] = useState(false)
   const [voted, setVoted] = useState(false)
+  const [winner, setWinner] = useState(null)
   const [history, setHistory] = useState(null)
+  const [error, setError] = useState(null)
+  const scrollRefs = useRef({})
 
   const handleRun = useCallback(async () => {
     if (!prompt.trim() || isRunning) return
     setIsRunning(true)
-    setTestResult(null)
+    setTestMeta(null)
+    setModelTexts({})
+    setModelStats({})
     setVoted(false)
+    setWinner(null)
+    setError(null)
 
     try {
-      const result = await runABTest(prompt)
-      setTestResult(result)
+      await streamABTest(prompt, {
+        onStart: (data) => {
+          setTestMeta(data)
+          // Initialize empty text for each model
+          const texts = {}
+          data.models.forEach(m => { texts[m] = '' })
+          setModelTexts(texts)
+        },
+        onChunk: (data) => {
+          setModelTexts(prev => ({
+            ...prev,
+            [data.model]: (prev[data.model] || '') + data.content,
+          }))
+        },
+        onModelDone: (data) => {
+          setModelStats(prev => ({
+            ...prev,
+            [data.model]: data,
+          }))
+        },
+        onComplete: () => {
+          setIsRunning(false)
+        },
+        onError: (err) => {
+          setError(err.message)
+          setIsRunning(false)
+        },
+      })
+      // Stream ended
+      setIsRunning(false)
     } catch (err) {
-      setTestResult({ error: err.message })
-    } finally {
+      setError(err.message)
       setIsRunning(false)
     }
   }, [prompt, isRunning])
 
   const handleVote = async (model) => {
-    if (!testResult?.test_id || voted) return
+    if (!testMeta?.test_id || voted) return
     try {
-      await voteABTest(testResult.test_id, model)
+      await voteABTest(testMeta.test_id, model)
       setVoted(true)
-      setTestResult(prev => ({ ...prev, winner: model }))
+      setWinner(model)
     } catch {
       // ignore vote errors
     }
@@ -43,6 +79,8 @@ export default function ABArena() {
     const data = await getABTestHistory()
     setHistory(data)
   }
+
+  const allModelsDone = testMeta && Object.keys(modelStats).length === testMeta.models.length
 
   return (
     <div className="space-y-6">
@@ -84,17 +122,17 @@ export default function ABArena() {
         </div>
       </div>
 
-      {/* Loading */}
-      {isRunning && (
+      {/* Loading (before start event) */}
+      {isRunning && !testMeta && (
         <div className="flex items-center justify-center gap-3 py-12 text-gray-400">
           <div className="w-5 h-5 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-          <span className="text-sm">Running models in parallel...</span>
+          <span className="text-sm">Starting models...</span>
         </div>
       )}
 
-      {/* Results */}
+      {/* Streaming Results */}
       <AnimatePresence>
-        {testResult && !testResult.error && (
+        {testMeta && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -102,21 +140,31 @@ export default function ABArena() {
           >
             {/* Test info */}
             <div className="flex items-center gap-3 text-sm text-gray-400">
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${TASK_TYPE_COLORS[testResult.task_type]}`}>
-                {TASK_TYPE_LABELS[testResult.task_type]}
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${TASK_TYPE_COLORS[testMeta.task_type]}`}>
+                {TASK_TYPE_LABELS[testMeta.task_type]}
               </span>
-              <span className="font-mono">complexity: {testResult.complexity}</span>
+              <span className="font-mono">complexity: {testMeta.complexity}</span>
+              {isRunning && (
+                <span className="flex items-center gap-1.5 text-purple-400">
+                  <div className="w-3 h-3 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                  Streaming...
+                </span>
+              )}
             </div>
 
             {/* Side by side results */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {testResult.results?.map((result, i) => {
-                const isWinner = testResult.winner === result.model
-                const colors = MODEL_COLORS[result.model] || {}
+              {testMeta.models.map((model, i) => {
+                const text = modelTexts[model] || ''
+                const stats = modelStats[model]
+                const isDone = !!stats
+                const isWinner = winner === model
+                const colors = MODEL_COLORS[model] || {}
+                const hasError = stats?.error
 
                 return (
                   <motion.div
-                    key={result.model}
+                    key={model}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1 }}
@@ -125,30 +173,49 @@ export default function ABArena() {
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <ModelBadge model={result.model} />
-                      {isWinner && (
-                        <span className="flex items-center gap-1 text-xs text-yellow-400">
-                          <Trophy className="w-3 h-3" /> Winner
-                        </span>
+                      <ModelBadge model={model} />
+                      <div className="flex items-center gap-2">
+                        {!isDone && text.length > 0 && (
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                        )}
+                        {isDone && !hasError && (
+                          <span className="text-[10px] text-green-400">Done</span>
+                        )}
+                        {isWinner && (
+                          <span className="flex items-center gap-1 text-xs text-yellow-400">
+                            <Trophy className="w-3 h-3" /> Winner
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      ref={(el) => { scrollRefs.current[model] = el }}
+                      className="bg-gray-800/50 rounded-lg p-3 h-48 overflow-y-auto mb-3"
+                    >
+                      {text ? (
+                        <pre className="whitespace-pre-wrap text-xs text-gray-300 font-mono leading-relaxed">
+                          {text}
+                          {!isDone && <span className="animate-pulse text-purple-400">|</span>}
+                        </pre>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-gray-600 text-xs">
+                          {isRunning ? 'Waiting for response...' : 'No response'}
+                        </div>
                       )}
                     </div>
 
-                    <div className="bg-gray-800/50 rounded-lg p-3 max-h-48 overflow-y-auto mb-3">
-                      <pre className="whitespace-pre-wrap text-xs text-gray-300 font-mono leading-relaxed">
-                        {result.error ? result.response_text : result.response_text?.slice(0, 500)}
-                        {result.response_text?.length > 500 && '...'}
-                      </pre>
-                    </div>
+                    {isDone && !hasError && (
+                      <div className="flex gap-3 text-xs text-gray-500 mb-3">
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{stats.latency_ms}ms</span>
+                        <span className="flex items-center gap-1"><Hash className="w-3 h-3" />{stats.tokens_used}</span>
+                        <span className="flex items-center gap-1"><Coins className="w-3 h-3" />${stats.cost_cents?.toFixed(4)}</span>
+                      </div>
+                    )}
 
-                    <div className="flex gap-3 text-xs text-gray-500 mb-3">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{result.latency_ms}ms</span>
-                      <span className="flex items-center gap-1"><Hash className="w-3 h-3" />{result.tokens_used}</span>
-                      <span className="flex items-center gap-1"><Coins className="w-3 h-3" />${result.cost_cents?.toFixed(4)}</span>
-                    </div>
-
-                    {!voted && !result.error && (
+                    {allModelsDone && !voted && !hasError && (
                       <button
-                        onClick={() => handleVote(result.model)}
+                        onClick={() => handleVote(model)}
                         className="w-full py-1.5 text-xs font-medium rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
                       >
                         Vote Best
@@ -162,9 +229,9 @@ export default function ABArena() {
         )}
       </AnimatePresence>
 
-      {testResult?.error && (
+      {error && (
         <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-          Error: {testResult.error}
+          Error: {error}
         </div>
       )}
 
