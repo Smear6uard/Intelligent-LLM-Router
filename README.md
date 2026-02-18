@@ -4,7 +4,7 @@ A production-grade system that classifies prompts by complexity, routes them to 
 
 ## Demo
 
-https://github.com/user-attachments/assets/d486f759-1f92-4d16-80cf-989459b8cd56
+https://github.com/user-attachments/assets/d7f04cf1-bf53-43f7-a5b3-d63a23f457cd
 
 ## Architecture
 
